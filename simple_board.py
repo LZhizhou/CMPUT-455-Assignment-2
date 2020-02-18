@@ -265,6 +265,9 @@ class SimpleGoBoard(object):
             self.ko_recapture = single_captures[0]
         self.current_player = GoBoardUtil.opponent(color)
         return True
+    def undoMove(self,move):
+        self.current_player = GoBoardUtil.opponent(self.current_player)
+        self.board[move] = EMPTY
 
     def neighbors_of_color(self, point, color):
         """ List of neighbors of point of given color """
