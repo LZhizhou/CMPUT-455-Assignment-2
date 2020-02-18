@@ -12,6 +12,9 @@ from board_util import GoBoardUtil, BLACK, WHITE, EMPTY, BORDER, PASS, \
                        MAXSIZE, coord_to_point
 import numpy as np
 import re
+import time
+from multiprocessing import Process, Queue
+
 
 class GtpConnection():
 
@@ -65,7 +68,7 @@ class GtpConnection():
             "genmove": (1, 'Usage: genmove {w,b}'),
             "play": (2, 'Usage: play {b,w} MOVE'),
             "legal_moves": (1, 'Usage: legal_moves {w,b}'),
-            "timelimit":(1,"Usage: seconds INT")
+            "timelimit":(1,"Usage: timelimit seconds")
         }
     
     def write(self, data):
@@ -253,7 +256,7 @@ class GtpConnection():
         """
         board_color = args[0].lower()
         color = color_to_int(board_color)
-        move = self.go_engine.get_move(self.board, color)
+        win, move = negamaxBoolean(self.board)
         move_coord = point_to_coord(move, self.board.size)
         move_as_string = format_point(move_coord)
         if self.board.is_legal(move, color):
@@ -343,37 +346,19 @@ class GtpConnection():
     def timelimit_cmf(self, args):
         self.timelimit = int(args[0])
         self.respond()
-    
-    def minmax_search(self,board,color,result = []):
-        
-        moves = GoBoardUtil.generate_legal_moves(board, color)
-        best_move = ''
-        latter_moves = []
-        best_score = -2 if self.board.current_player == color else 2
-        
-        for move in moves:
-            board_copy = board.copy()
-            if board_copy.play_move(move, color):
-                # print("{} plays {}".format(color,move))
-                score,latter = self.minmax_search(board_copy, GoBoardUtil.opponent(color))
-                if ((score > best_score) if self.board.current_player == color else (score < best_score)):
-                    best_move = move
-                    best_score = score
-                    latter_moves = latter if latter else []
-                    if ((score == 1) if self.board.current_player == color else (score == -1)):
-                        break
-            
-        if best_move == '':
-            return 1 if self.board.current_player == color else -1,None
-        else:
-            # print([best_move]+latter_moves)
-            return best_score,[best_move]+latter_moves
-    
-        
+
+
     def solve(self, args):
-        score, moves = self.minmax_search(self.board.copy(), self.board.current_player)
-        for move in moves:
-            print(point_to_coord(move, self.board.size))
+        start = time.process_time()
+        win, move = negamaxBoolean(self.board)
+        timeUsed = time.process_time() - start
+        print(timeUsed)
+        if win:
+            color = "b" if self.board.current_player == BLACK else "w"
+            self.respond("{} {}".format(color, format_point(point_to_coord(move, self.board.size)).lower()))
+        else:
+            color = "w" if self.board.current_player == BLACK else "b"
+            self.respond("{}".format(color))
     
 
 def point_to_coord(point, boardsize):
@@ -435,3 +420,15 @@ def color_to_int(c):
     color_to_int = {"b": BLACK , "w": WHITE, "e": EMPTY, 
                     "BORDER": BORDER}
     return color_to_int[c] 
+
+def negamaxBoolean(board):
+    moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
+    if len(moves) == 0:
+        return False, None
+    for move in moves:
+        board_copy = board.copy()
+        board_copy.play_move(move,board.current_player)
+        fail,_ = negamaxBoolean(board_copy)
+        if not fail:
+            return True, move
+    return False, None
