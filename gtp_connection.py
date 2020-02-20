@@ -450,10 +450,10 @@ def color_to_int(c):
 
 def storeResult(tt, board, result, move):
     # all_code = board.get_all_codes()
-    # map(lambda x: transposition_table.store(x, result, move), all_code)
+    # map(lambda x: tt.store(x, result, move), all_code)
     # for i in all_code:
-    #     transposition_table.store(i, result, move)
-    transposition_table.store(board.code(), result, move)
+    #     tt.store(i, result, move)
+    tt.store(board.code(), result, move)
     return result, move
 
 
