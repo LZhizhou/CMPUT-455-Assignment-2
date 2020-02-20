@@ -7,12 +7,13 @@ in the Deep-Go project by Isaac Henrion and Amos Storkey
 at the University of Edinburgh.
 """
 import signal
+import time
 import traceback
 from sys import stdin, stdout, stderr
 from board_util import GoBoardUtil, BLACK, WHITE, EMPTY, BORDER, PASS, \
     MAXSIZE, coord_to_point
 import re
-
+import multiprocessing as mp
 
 
 class GtpConnection():
@@ -32,6 +33,7 @@ class GtpConnection():
         self.go_engine = go_engine
         self.board = board
         self.timelimit = 1
+
         self.commands = {
             "protocol_version": self.protocol_version_cmd,
             "quit": self.quit_cmd,
@@ -148,6 +150,11 @@ class GtpConnection():
         """
         Reset the board to empty board of given size
         """
+        if size != self.board.size:
+            global transposition_table
+            global history_heuristic
+            transposition_table = TranspositionTable()
+            history_heuristic = HistoryHeuristicTable()
         self.board.reset(size)
 
     def board2d(self):
@@ -256,8 +263,8 @@ class GtpConnection():
         """
         board_color = args[0].lower()
         color = color_to_int(board_color)
-        win, move = negamax_boolean(self.board)
-        if not win:
+        move = negamax_boolean(self.board, transposition_table, history_heuristic, 0)[1]
+        if move is None:
             self.respond("resign")
             return
         move_coord = point_to_coord(move, self.board.size)
@@ -350,19 +357,26 @@ class GtpConnection():
     def timelimit_cmf(self, args):
         self.timelimit = int(args[0])
         self.respond()
+
     def handler(self, signum, frame):
         raise TimeoutError
+
     def solve(self, args):
-        signal.signal(signal.SIGALRM, self.handler)
-        signal.alarm(self.timelimit)
+        start = time.process_time()
+        # signal.signal(signal.SIGALRM, self.handler)
+        # signal.alarm(self.timelimit)
         try:
-            win,move = negamax_boolean(self.board)
-            signal.alarm(0)
+            move = negamax_boolean(self.board, transposition_table, history_heuristic, 0)[1]
+            # move = IDDFS(self.board,transposition_table)[1]
+            # signal.alarm(0)
         except TimeoutError:
-            signal.alarm(0)
+            # signal.alarm(0)
             self.respond("unknown")
             return
-        if win:
+        time_used = time.process_time() - start
+        print("cache hit: {}/{}".format(cache_hit, nodes))
+        print("time used: {}".format(time_used))
+        if move is not None:
             color = "b" if self.board.current_player == BLACK else "w"
             self.respond("{} {}".format(color, format_point(point_to_coord(move, self.board.size)).lower()))
         else:
@@ -434,18 +448,81 @@ def color_to_int(c):
     return color_to_int[c]
 
 
-def negamax_boolean(board):
+def storeResult(tt, board, result, move):
+    # all_code = board.get_all_codes()
+    # map(lambda x: transposition_table.store(x, result, move), all_code)
+    # for i in all_code:
+    #     transposition_table.store(i, result, move)
+    transposition_table.store(board.code(), result, move)
+    return result, move
 
+
+def negamax_boolean(board, tt, history_table, depth):
+    global nodes
+    nodes += 1
+    result = tt.lookup(board.code())
+    if result is not None:
+        global cache_hit
+        cache_hit += 1
+        return result
+
+    # moves = board.get_empty_points()
+    # moves = board.generate_legal_moves()
     moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
 
-    if len(moves) == 0:
-        return False, None
+    # moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
+    moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
+    # moves.sort(key=lambda i: board.edges_near_by(i), reverse=True)
+
+    pool = mp.Pool()
+
     for move in moves:
-        if board.play_move(move, board.current_player):
-            fail, _ = negamax_boolean(board)
-            board.undoMove(move)
-            if not fail:
-                return True, move
 
-    return False, None
+        board.play_move(move, board.current_player)
 
+        # print("play {}".format(format_point(point_to_coord(move, 4))))
+        success = not negamax_boolean(board, tt, history_table, depth + 1)[0]
+        board.undoMove(move)
+        # print("unplay {}".format(format_point(point_to_coord(move, 4))))
+        if success:
+            history_table.update(move, depth)
+            return storeResult(tt, board, True, move)
+            # return True, move
+
+    return storeResult(tt, board, False, None)
+    # return False, None
+
+
+class TranspositionTable:
+    def __init__(self):
+        self.table = {}
+
+    def __repr__(self):
+        return self.table.__repr__()
+
+    def store(self, code, score, move):
+        self.table[code] = (score, move)
+
+    def lookup(self, code):
+        return self.table.get(code)
+
+
+class HistoryHeuristicTable:
+    def __init__(self):
+        self.table = {}
+
+    def __repr__(self):
+        return self.table.__repr__()
+
+    def update(self, move, depth):
+        if move in self.table:
+            self.table[move] += 1 << depth
+        else:
+            self.table[move] = 1 << depth
+
+    def lookup(self, code):
+        return self.table.get(code) or 0
+cache_hit = 0
+nodes = 0
+transposition_table = TranspositionTable()
+history_heuristic = HistoryHeuristicTable()
