@@ -13,7 +13,6 @@ from sys import stdin, stdout, stderr
 from board_util import GoBoardUtil, BLACK, WHITE, EMPTY, BORDER, PASS, \
     MAXSIZE, coord_to_point
 import re
-import multiprocessing as mp
 
 
 class GtpConnection():
@@ -26,14 +25,15 @@ class GtpConnection():
         ----------
         go_engine:
             a program that can reply to a set of GTP commandsbelow
-        board: 
+        board:
             Represents the current board state.
         """
         self._debug_mode = debug_mode
         self.go_engine = go_engine
         self.board = board
         self.timelimit = 1
-
+        self.tt = TranspositionTable()
+        self.history_heuristic = HistoryHeuristicTable()
         self.commands = {
             "protocol_version": self.protocol_version_cmd,
             "quit": self.quit_cmd,
@@ -60,7 +60,7 @@ class GtpConnection():
         }
 
         # used for argument checking
-        # values: (required number of arguments, 
+        # values: (required number of arguments,
         #          error message on argnum failure)
         self.argmap = {
             "boardsize": (1, 'Usage: boardsize INT'),
@@ -80,7 +80,7 @@ class GtpConnection():
 
     def start_connection(self):
         """
-        Start a GTP connection. 
+        Start a GTP connection.
         This function continuously monitors standard input for commands.
         """
         line = stdin.readline()
@@ -151,10 +151,8 @@ class GtpConnection():
         Reset the board to empty board of given size
         """
         if size != self.board.size:
-            global transposition_table
-            global history_heuristic
-            transposition_table = TranspositionTable()
-            history_heuristic = HistoryHeuristicTable()
+            self.tt = TranspositionTable()
+            self.history_heuristic = HistoryHeuristicTable()
         self.board.reset(size)
 
     def board2d(self):
@@ -263,7 +261,7 @@ class GtpConnection():
         """
         board_color = args[0].lower()
         color = color_to_int(board_color)
-        move = negamax_boolean(self.board, transposition_table, history_heuristic, 0)[1]
+        move = negamax_boolean(self.board, self.tt, self.history_heuristic, 0)[1]
         if move is None:
             self.respond("resign")
             return
@@ -360,28 +358,27 @@ class GtpConnection():
 
     def handler(self, signum, frame):
         raise TimeoutError
+        # pass
 
     def solve(self, args):
         start = time.process_time()
-        # signal.signal(signal.SIGALRM, self.handler)
-        # signal.alarm(self.timelimit)
+        signal.signal(signal.SIGALRM, self.handler)
+        signal.alarm(self.timelimit)
         try:
-            move = negamax_boolean(self.board, transposition_table, history_heuristic, 0)[1]
-            # move = IDDFS(self.board,transposition_table)[1]
-            # signal.alarm(0)
+            move = negamax_boolean(self.board, self.tt, self.history_heuristic, 0)[1]
+            signal.alarm(0)
         except TimeoutError:
-            # signal.alarm(0)
+            signal.alarm(0)
             self.respond("unknown")
             return
         time_used = time.process_time() - start
-        print("cache hit: {}/{}".format(cache_hit, nodes))
-        print("time used: {}".format(time_used))
+        print("time used: {}s".format(time_used))
         if move is not None:
             color = "b" if self.board.current_player == BLACK else "w"
             self.respond("{} {}".format(color, format_point(point_to_coord(move, self.board.size)).lower()))
         else:
             color = "w" if self.board.current_player == BLACK else "b"
-            self.respond("{}".format(color))
+            self.respond(color)
 
 
 def point_to_coord(point, boardsize):
@@ -448,7 +445,7 @@ def color_to_int(c):
     return color_to_int[c]
 
 
-def storeResult(tt, board, result, move):
+def store_result(tt, board, result, move):
     # all_code = board.get_all_codes()
     # map(lambda x: tt.store(x, result, move), all_code)
     # for i in all_code:
@@ -458,12 +455,8 @@ def storeResult(tt, board, result, move):
 
 
 def negamax_boolean(board, tt, history_table, depth):
-    global nodes
-    nodes += 1
     result = tt.lookup(board.code())
     if result is not None:
-        global cache_hit
-        cache_hit += 1
         return result
 
     # moves = board.get_empty_points()
@@ -473,9 +466,6 @@ def negamax_boolean(board, tt, history_table, depth):
     # moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
     moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
     # moves.sort(key=lambda i: board.edges_near_by(i), reverse=True)
-
-    pool = mp.Pool()
-
     for move in moves:
 
         board.play_move(move, board.current_player)
@@ -486,10 +476,10 @@ def negamax_boolean(board, tt, history_table, depth):
         # print("unplay {}".format(format_point(point_to_coord(move, 4))))
         if success:
             history_table.update(move, depth)
-            return storeResult(tt, board, True, move)
+            return store_result(tt, board, True, move)
             # return True, move
 
-    return storeResult(tt, board, False, None)
+    return store_result(tt, board, False, None)
     # return False, None
 
 
@@ -522,7 +512,3 @@ class HistoryHeuristicTable:
 
     def lookup(self, code):
         return self.table.get(code) or 0
-cache_hit = 0
-nodes = 0
-transposition_table = TranspositionTable()
-history_heuristic = HistoryHeuristicTable()
