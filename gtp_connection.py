@@ -153,6 +153,8 @@ class GtpConnection():
         if size != self.board.size:
             self.tt = TranspositionTable()
             self.history_heuristic = HistoryHeuristicTable()
+        # self.tt = TranspositionTable()
+        # self.history_heuristic = HistoryHeuristicTable()
         self.board.reset(size)
 
     def board2d(self):
@@ -361,7 +363,10 @@ class GtpConnection():
         # pass
 
     def solve(self, args):
-        start = time.process_time()
+        # start = time.process_time()
+        # tt_copy = self.tt.table.copy()
+        # hh_copy = self.history_heuristic.table.copy()
+        board_copy = self.board.copy()
         signal.signal(signal.SIGALRM, self.handler)
         signal.alarm(self.timelimit)
         try:
@@ -369,10 +374,20 @@ class GtpConnection():
             signal.alarm(0)
         except TimeoutError:
             signal.alarm(0)
+
             self.respond("unknown")
+            # self.tt = TranspositionTable()
+            # self.tt.table = tt_copy
+            # self.history_heuristic = HistoryHeuristicTable()
+            # self.history_heuristic.table = hh_copy
+            self.board = board_copy
+            # print(self.tt)
+            # print(self.history_heuristic)
             return
-        time_used = time.process_time() - start
-        print("time used: {}s".format(time_used))
+        # time_used = time.process_time() - start
+        # print("time used: {}s".format(time_used))
+        # print(self.tt)
+        # print(self.history_heuristic)
         if move is not None:
             color = "b" if self.board.current_player == BLACK else "w"
             self.respond("{} {}".format(color, format_point(point_to_coord(move, self.board.size)).lower()))
@@ -450,6 +465,8 @@ def store_result(tt, board, result, move):
     # map(lambda x: tt.store(x, result, move), all_code)
     # for i in all_code:
     #     tt.store(i, result, move)
+    # print(str(GoBoardUtil.get_twoD_board(board)))
+    # print(result,format_point(point_to_coord(move, board.size)))
     tt.store(board.code(), result, move)
     return result, move
 
@@ -485,6 +502,7 @@ def negamax_boolean(board, tt, history_table, depth):
 
 class TranspositionTable:
     def __init__(self):
+
         self.table = {}
 
     def __repr__(self):
@@ -495,7 +513,6 @@ class TranspositionTable:
 
     def lookup(self, code):
         return self.table.get(code)
-
 
 class HistoryHeuristicTable:
     def __init__(self):
