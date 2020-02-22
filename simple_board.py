@@ -310,7 +310,7 @@ class SimpleGoBoard(object):
 
     def edges_near_by(self, point):
         neighbors = [point - self.NS, point + self.NS, point - 1, point + 1]
-        return sum(map(lambda x: x == BORDER, neighbors))
+        return sum(map(lambda x: self.board[x] == BORDER, neighbors))
 
     def neighbors_of_color(self, point, color):
         """ List of neighbors of point of given color """

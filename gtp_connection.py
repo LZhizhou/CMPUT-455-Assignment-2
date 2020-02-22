@@ -355,8 +355,12 @@ class GtpConnection():
                      )
 
     def timelimit_cmf(self, args):
-        self.timelimit = int(args[0])
-        self.respond()
+        a = int(args[0])
+
+        if a>=1 and a <=100:
+            self.timelimit = a
+            self.respond()
+
 
     def handler(self, signum, frame):
         raise TimeoutError
@@ -478,10 +482,11 @@ def negamax_boolean(board, tt, history_table, depth):
     # moves = board.get_empty_points()
     # moves = board.generate_legal_moves()
     moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
-
-    # moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
-    moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
+    # print("original: ",moves)
+    moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
+    # moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
     # moves.sort(key=lambda i: board.edges_near_by(i), reverse=True)
+    # print("sorted: ", moves)
     for move in moves:
 
         board.play_move(move, board.current_player)
@@ -501,7 +506,6 @@ def negamax_boolean(board, tt, history_table, depth):
 
 class TranspositionTable:
     def __init__(self):
-
         self.table = {}
 
     def __repr__(self):
@@ -512,6 +516,7 @@ class TranspositionTable:
 
     def lookup(self, code):
         return self.table.get(code)
+
 
 class HistoryHeuristicTable:
     def __init__(self):
