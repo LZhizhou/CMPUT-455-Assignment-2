@@ -13,7 +13,7 @@ from sys import stdin, stdout, stderr
 from board_util import GoBoardUtil, BLACK, WHITE, EMPTY, BORDER, PASS, \
     MAXSIZE, coord_to_point
 import re
-
+import multiprocessing as mp
 
 class GtpConnection():
 
@@ -32,8 +32,8 @@ class GtpConnection():
         self.go_engine = go_engine
         self.board = board
         self.timelimit = 1
-        self.tt = TranspositionTable()
-        self.history_heuristic = HistoryHeuristicTable()
+        self.tt = {board.size:TranspositionTable()}
+        self.history_heuristic = {board.size:HistoryHeuristicTable()}
         self.commands = {
             "protocol_version": self.protocol_version_cmd,
             "quit": self.quit_cmd,
@@ -150,9 +150,10 @@ class GtpConnection():
         """
         Reset the board to empty board of given size
         """
-        if size != self.board.size:
-            self.tt = TranspositionTable()
-            self.history_heuristic = HistoryHeuristicTable()
+        if size not in self.tt:
+
+            self.tt[size] = TranspositionTable()
+            self.history_heuristic[size] = HistoryHeuristicTable()
         # self.tt = TranspositionTable()
         # self.history_heuristic = HistoryHeuristicTable()
         self.board.reset(size)
@@ -263,7 +264,7 @@ class GtpConnection():
         """
         board_color = args[0].lower()
         color = color_to_int(board_color)
-        move = negamax_boolean(self.board, self.tt, self.history_heuristic, 0)[1]
+        move = negamax_boolean(self.board, self.tt[self.board.size], self.history_heuristic[self.board.size], 0)[1]
         if move is None:
             self.respond("resign")
             return
@@ -356,10 +357,11 @@ class GtpConnection():
 
     def timelimit_cmf(self, args):
         a = int(args[0])
-
-        if a>=1 and a <=100:
-            self.timelimit = a
-            self.respond()
+        self.timelimit = a
+        self.respond()
+        # if a>=1 and a <=100:
+        #     self.timelimit = a
+        #     self.respond()
 
 
     def handler(self, signum, frame):
@@ -367,14 +369,14 @@ class GtpConnection():
         # pass
 
     def solve(self, args):
-        # start = time.process_time()
+        start = time.process_time()
         # tt_copy = self.tt.table.copy()
         # hh_copy = self.history_heuristic.table.copy()
         board_copy = self.board.copy()
         signal.signal(signal.SIGALRM, self.handler)
         signal.alarm(self.timelimit)
         try:
-            move = negamax_boolean(self.board, self.tt, self.history_heuristic, 0)[1]
+            move = negamax_boolean(self.board, self.tt[self.board.size], self.history_heuristic[self.board.size], 0)[1]
             signal.alarm(0)
         except TimeoutError:
             signal.alarm(0)
@@ -387,8 +389,8 @@ class GtpConnection():
             # print(self.tt)
             # print(self.history_heuristic)
             return
-        # time_used = time.process_time() - start
-        # print("time used: {}s".format(time_used))
+        time_used = time.process_time() - start
+        print("time used: {}s".format(time_used))
         # print(self.tt)
         # print(self.history_heuristic)
         if move is not None:
@@ -489,6 +491,9 @@ def negamax_boolean(board, tt, history_table, depth):
     # print("sorted: ", moves)
     for move in moves:
 
+    # while moves:
+    #     move = max(moves, key=lambda i: (history_table.lookup(i),board.edges_near_by(i)))
+    #     moves.remove(move)
         board.play_move(move, board.current_player)
 
         # print("play {}".format(format_point(point_to_coord(move, 4))))
