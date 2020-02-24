@@ -311,7 +311,13 @@ class SimpleGoBoard(object):
     def edges_near_by(self, point):
         neighbors = [point - self.NS, point + self.NS, point - 1, point + 1]
         return sum(map(lambda x: self.board[x] == BORDER, neighbors))
-
+    def get_moves_count(self,color):
+        moves = self.get_empty_points()
+        count = 0
+        for move in moves:
+            if self.is_legal(move, color):
+                count +=1
+        return count
     def neighbors_of_color(self, point, color):
         """ List of neighbors of point of given color """
         nbc = []

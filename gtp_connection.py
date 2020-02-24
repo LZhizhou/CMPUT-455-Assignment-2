@@ -373,13 +373,13 @@ class GtpConnection():
         # tt_copy = self.tt.table.copy()
         # hh_copy = self.history_heuristic.table.copy()
         board_copy = self.board.copy()
-        signal.signal(signal.SIGALRM, self.handler)
-        signal.alarm(self.timelimit)
+        # signal.signal(signal.SIGALRM, self.handler)
+        # signal.alarm(self.timelimit)
         try:
             move = negamax_boolean(self.board, self.tt[self.board.size], self.history_heuristic[self.board.size], 0)[1]
-            signal.alarm(0)
+            # signal.alarm(0)
         except TimeoutError:
-            signal.alarm(0)
+            # signal.alarm(0)
             self.respond("unknown")
             # self.tt = TranspositionTable()
             # self.tt.table = tt_copy
@@ -475,6 +475,41 @@ def store_result(tt, board, result, move):
     tt.store(board.code(), result, move)
     return result, move
 
+def heuristic(move, board):
+    opponent = GoBoardUtil.opponent(board.current_player)
+    # current moves for current player
+    moves_current = board.get_moves_count(board.current_player)
+    # current moves of opponent
+    moves_opponent = board.get_moves_count(opponent)
+    # current player plays
+    board.play_move(move, board.current_player)
+    # print("plays")
+    after_play_moves_opponent = board.get_moves_count(opponent)
+    after_play_moves_current = board.get_moves_count(board.current_player)
+    board.undoMove(move)
+    # print("unplays")
+    # legal moves removed for opponent
+    a = moves_opponent - after_play_moves_opponent
+    # legal moves removed for current player
+    b = moves_current - after_play_moves_current
+
+    benifit_for_current = a-b 
+    try:
+        # opponent plays
+        board.play_move(move, opponent)
+        
+        after_opponent_play_opponent = board.get_moves_count(opponent)
+        after_opponent_play_current = board.get_moves_count(board.current_player)
+        board.undoMove(move)
+        # legal moves removed for opponent
+        a_prime = moves_opponent - after_opponent_play_opponent
+        # legal moves removed for current player
+        b_prime = moves_opponent - after_opponent_play_current
+        benifit_for_opponent = a_prime-b_prime
+    except ValueError:
+        benifit_for_opponent = 0
+    
+    return benifit_for_current - benifit_for_opponent
 
 def negamax_boolean(board, tt, history_table, depth):
     result = tt.lookup(board.code())
@@ -485,15 +520,16 @@ def negamax_boolean(board, tt, history_table, depth):
     # moves = board.generate_legal_moves()
     moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
     # print("original: ",moves)
-    moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
+    # moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
+
     # moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
     # moves.sort(key=lambda i: board.edges_near_by(i), reverse=True)
     # print("sorted: ", moves)
-    for move in moves:
+    # for move in moves:
 
-    # while moves:
-    #     move = max(moves, key=lambda i: (history_table.lookup(i),board.edges_near_by(i)))
-    #     moves.remove(move)
+    while moves:
+        move = max(moves, key=lambda i: heuristic(i,board))
+        moves.remove(move)
         board.play_move(move, board.current_player)
 
         # print("play {}".format(format_point(point_to_coord(move, 4))))
