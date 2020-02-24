@@ -309,14 +309,9 @@ class SimpleGoBoard(object):
         return c
 
     def can_be_played(self, point):
+
         return self.is_legal(point,BLACK) + self.is_legal(point,WHITE)
-    def get_moves_count(self,color):
-        moves = self.get_empty_points()
-        count = 0
-        for move in moves:
-            if self.is_legal(move, color):
-                count +=1
-        return count
+
     def neighbors_of_color(self, point, color):
         """ List of neighbors of point of given color """
         nbc = []
