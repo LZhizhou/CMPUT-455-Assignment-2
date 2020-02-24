@@ -475,7 +475,7 @@ def store_result(tt, board, result, move):
     return result, move
 
 
-def heuristic(move, board,lock):
+def heuristic(move, board):
     
     # new_moves = GoBoardUtil.generate_legal_moves(board,board.current_player)
     # print("compare board: {}".format(board.board))
@@ -488,13 +488,13 @@ def heuristic(move, board,lock):
     # current moves of opponent
     moves_opponent = board.get_moves_count(opponent)
     # current player plays
-    lock.acquire()
+
     board.play_move(move, current_player)
     # print("plays")
     after_play_moves_opponent = board.get_moves_count(opponent)
     after_play_moves_current = board.get_moves_count(current_player)
     board.undoMove(move)
-    lock.release()
+
     # print("unplays")
     # legal moves removed for opponent
     a = moves_opponent - after_play_moves_opponent
@@ -502,25 +502,25 @@ def heuristic(move, board,lock):
     b = moves_current - after_play_moves_current
 
     benefit_for_current = a - b
-    try:
-        # opponent plays
-        lock.acquire()
-        board.play_move(move, opponent)
-        after_opponent_play_opponent = board.get_moves_count(opponent)
-        after_opponent_play_current = board.get_moves_count(current_player)
-        board.undoMove(move)
-        lock.release()
-        board.current_player = current_player
-        # legal moves removed for opponent
-        a_prime = moves_opponent - after_opponent_play_opponent
-        # legal moves removed for current player
-        b_prime = moves_opponent - after_opponent_play_current
-        benefit_for_opponent = a_prime - b_prime
-    except ValueError:
-        benefit_for_opponent = 0
-    # print("for current: {}, for opponent: {}, total: {}".format(benefit_for_current, benefit_for_opponent,
-    #                                                             benefit_for_current - benefit_for_opponent))
-    return benefit_for_current - benefit_for_opponent
+    # try:
+    #     # opponent plays
+    #     board.play_move(move, opponent)
+    #     after_opponent_play_opponent = board.get_moves_count(opponent)
+    #     after_opponent_play_current = board.get_moves_count(current_player)
+    #     board.undoMove(move)
+    #     board.current_player = current_player
+    #     # legal moves removed for opponent
+    #     a_prime = moves_opponent - after_opponent_play_opponent
+    #     # legal moves removed for current player
+    #     b_prime = moves_opponent - after_opponent_play_current
+    #     benefit_for_opponent = a_prime - b_prime
+    # except ValueError:
+    #     board.undoMove(move)
+    #     board.current_player = current_player
+    #     benefit_for_opponent = 0
+    # # print("for current: {}, for opponent: {}, total: {}".format(benefit_for_current, benefit_for_opponent,
+    # #                                                             benefit_for_current - benefit_for_opponent))
+    return benefit_for_current
 
 
 def negamax_boolean(board, tt, history_table, depth):
@@ -532,19 +532,21 @@ def negamax_boolean(board, tt, history_table, depth):
     # moves = board.generate_legal_moves()
     moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
     # print("original: ",moves)
-    # moves.sort(key=lambda i: (heuristic(i, board),history_table.lookup(i),board.edges_near_by(i)),reverse=True)
     # moves.sort(key=lambda i: (heuristic(i, board),history_table.lookup(i)),reverse=True)
-    lock = threading.Lock()
-    moves.sort(key=lambda i: heuristic(i, board,lock),reverse=True)
+    # moves.sort(key=lambda i: (history_table.lookup(i),-board.can_be_played(i)),reverse=True)
 
-    # moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
+    # moves.sort(key=lambda i: heuristic(i, board),reverse=True)
+
+    moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
     # moves.sort(key=lambda i: board.edges_near_by(i), reverse=True)
     # print("sorted: ", moves)
+
     for move in moves:
+
     # print("   this board: {}".format(board.board))
     # while moves:
-    #     move = max(moves, key=lambda i: heuristic(i, board))
-    #     moves.remove(move)
+    #     move = max(moves,key=lambda x:heuristic(x,board))
+        moves.remove(move)
         board.play_move(move, board.current_player)
 
         # print("play {}".format(format_point(point_to_coord(move, 4))))

@@ -308,9 +308,8 @@ class SimpleGoBoard(object):
                 count += 1
         return c
 
-    def edges_near_by(self, point):
-        neighbors = [point - self.NS, point + self.NS, point - 1, point + 1]
-        return sum(map(lambda x: self.board[x] == BORDER, neighbors))
+    def can_be_played(self, point):
+        return self.is_legal(point,BLACK) + self.is_legal(point,WHITE)
     def get_moves_count(self,color):
         moves = self.get_empty_points()
         count = 0
