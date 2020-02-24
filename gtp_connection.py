@@ -15,6 +15,7 @@ from board_util import GoBoardUtil, BLACK, WHITE, EMPTY, BORDER, PASS, \
 import re
 import multiprocessing as mp
 
+
 class GtpConnection():
 
     def __init__(self, go_engine, board, debug_mode=False):
@@ -32,8 +33,8 @@ class GtpConnection():
         self.go_engine = go_engine
         self.board = board
         self.timelimit = 1
-        self.tt = {board.size:TranspositionTable()}
-        self.history_heuristic = {board.size:HistoryHeuristicTable()}
+        self.tt = {board.size: TranspositionTable()}
+        self.history_heuristic = {board.size: HistoryHeuristicTable()}
         self.commands = {
             "protocol_version": self.protocol_version_cmd,
             "quit": self.quit_cmd,
@@ -151,7 +152,6 @@ class GtpConnection():
         Reset the board to empty board of given size
         """
         if size not in self.tt:
-
             self.tt[size] = TranspositionTable()
             self.history_heuristic[size] = HistoryHeuristicTable()
         # self.tt = TranspositionTable()
@@ -363,7 +363,6 @@ class GtpConnection():
         #     self.timelimit = a
         #     self.respond()
 
-
     def handler(self, signum, frame):
         raise TimeoutError
         # pass
@@ -475,41 +474,51 @@ def store_result(tt, board, result, move):
     tt.store(board.code(), result, move)
     return result, move
 
+
 def heuristic(move, board):
-    opponent = GoBoardUtil.opponent(board.current_player)
+    board_copy = board.copy()
+    # new_moves = GoBoardUtil.generate_legal_moves(board,board.current_player)
+    # print("compare board: {}".format(board.board))
+    # if move not in new_moves:
+    #     print(new_moves)
+    current_player = board_copy.current_player
+    opponent = GoBoardUtil.opponent(current_player)
     # current moves for current player
-    moves_current = board.get_moves_count(board.current_player)
+    moves_current = board_copy.get_moves_count(current_player)
     # current moves of opponent
-    moves_opponent = board.get_moves_count(opponent)
+    moves_opponent = board_copy.get_moves_count(opponent)
     # current player plays
-    board.play_move(move, board.current_player)
+    board_copy.play_move(move, current_player)
     # print("plays")
-    after_play_moves_opponent = board.get_moves_count(opponent)
-    after_play_moves_current = board.get_moves_count(board.current_player)
-    board.undoMove(move)
+    after_play_moves_opponent = board_copy.get_moves_count(opponent)
+    after_play_moves_current = board_copy.get_moves_count(current_player)
+    board_copy.undoMove(move)
     # print("unplays")
     # legal moves removed for opponent
     a = moves_opponent - after_play_moves_opponent
     # legal moves removed for current player
     b = moves_current - after_play_moves_current
 
-    benifit_for_current = a-b 
+    benefit_for_current = a - b
     try:
         # opponent plays
-        board.play_move(move, opponent)
-        
-        after_opponent_play_opponent = board.get_moves_count(opponent)
-        after_opponent_play_current = board.get_moves_count(board.current_player)
-        board.undoMove(move)
+        board_copy.play_move(move, opponent)
+
+        after_opponent_play_opponent = board_copy.get_moves_count(opponent)
+        after_opponent_play_current = board_copy.get_moves_count(current_player)
+        board_copy.undoMove(move)
+        board_copy.current_player = current_player
         # legal moves removed for opponent
         a_prime = moves_opponent - after_opponent_play_opponent
         # legal moves removed for current player
         b_prime = moves_opponent - after_opponent_play_current
-        benifit_for_opponent = a_prime-b_prime
+        benefit_for_opponent = a_prime - b_prime
     except ValueError:
-        benifit_for_opponent = 0
-    
-    return benifit_for_current - benifit_for_opponent
+        benefit_for_opponent = 0
+    # print("for current: {}, for opponent: {}, total: {}".format(benefit_for_current, benefit_for_opponent,
+    #                                                             benefit_for_current - benefit_for_opponent))
+    return benefit_for_current - benefit_for_opponent
+
 
 def negamax_boolean(board, tt, history_table, depth):
     result = tt.lookup(board.code())
@@ -520,15 +529,15 @@ def negamax_boolean(board, tt, history_table, depth):
     # moves = board.generate_legal_moves()
     moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
     # print("original: ",moves)
-    # moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
+    moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
 
     # moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
     # moves.sort(key=lambda i: board.edges_near_by(i), reverse=True)
     # print("sorted: ", moves)
     # for move in moves:
-
+    # print("   this board: {}".format(board.board))
     while moves:
-        move = max(moves, key=lambda i: heuristic(i,board))
+        move = max(moves, key=lambda i: heuristic(i, board))
         moves.remove(move)
         board.play_move(move, board.current_player)
 
