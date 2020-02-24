@@ -1,0 +1,9 @@
+Script started on Mon 24 Feb 2020 06:31:09 AM MST
+zhizhou@ug12:~/Documents/CMPUT-455-Assignment-2$ exitgogui-regress Nogo.py a2-sample.gtp [K[K[K[K[K[K[K[K[K[K[K[K[Kssignment2-public-tests.gtp
+60 unexpected FAIL: Correct 'w d1', got 'unknown'
+70 unexpected FAIL: Correct 'b a1|b b3|b b2|b b1|b c3|b c2|b c1', got 'unknown'
+80 unexpected FAIL: Correct 'b', got 'unknown'
+zhizhou@ug12:~/Documents/CMPUT-455-Assignment-2$ exit
+exit
+
+Script done on Mon 24 Feb 2020 06:38:34 AM MST
