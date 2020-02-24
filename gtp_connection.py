@@ -32,8 +32,8 @@ class GtpConnection():
         self.go_engine = go_engine
         self.board = board
         self.timelimit = 1
-        self.tt = TranspositionTable()
-        self.history_heuristic = HistoryHeuristicTable()
+        self.tt= {self.board.size:TranspositionTable()}
+        self.history_heuristic= {self.board.size:HistoryHeuristicTable()}
         self.commands = {
             "protocol_version": self.protocol_version_cmd,
             "quit": self.quit_cmd,
@@ -150,9 +150,9 @@ class GtpConnection():
         """
         Reset the board to empty board of given size
         """
-        if size != self.board.size:
-            self.tt = TranspositionTable()
-            self.history_heuristic = HistoryHeuristicTable()
+        if size not in self.tt:
+            self.tt[size] = TranspositionTable()
+            self.history_heuristic[size] = HistoryHeuristicTable()
         # self.tt = TranspositionTable()
         # self.history_heuristic = HistoryHeuristicTable()
         self.board.reset(size)
@@ -263,7 +263,7 @@ class GtpConnection():
         """
         board_color = args[0].lower()
         color = color_to_int(board_color)
-        move = negamax_boolean(self.board, self.tt, self.history_heuristic, 0)[1]
+        move = negamax_boolean(self.board, self.tt[self.board.size], self.history_heuristic[self.board.size], 0)[1]
         if move is None:
             self.respond("resign")
             return
@@ -367,14 +367,15 @@ class GtpConnection():
         # pass
 
     def solve(self, args):
-        start = time.process_time()
+        steps = self.board.count_steps();
+        # start = time.process_time()
         # tt_copy = self.tt.table.copy()
         # hh_copy = self.history_heuristic.table.copy()
         board_copy = self.board.copy()
         signal.signal(signal.SIGALRM, self.handler)
         signal.alarm(self.timelimit)
         try:
-            move = negamax_boolean(self.board, self.tt, self.history_heuristic, 0)[1]
+            move = negamax_boolean(self.board, self.tt[self.board.size], self.history_heuristic[self.board.size], steps)[1]
             signal.alarm(0)
         except TimeoutError:
             signal.alarm(0)
@@ -387,8 +388,8 @@ class GtpConnection():
             # print(self.tt)
             # print(self.history_heuristic)
             return
-        time_used = time.process_time() - start
-        print("time used: {}s".format(time_used))
+        # time_used = time.process_time() - start
+        # print("time used: {}s".format(time_used))
         # print(self.tt)
         # print(self.history_heuristic)
         if move is not None:
@@ -479,58 +480,58 @@ def heuristic(move, board):
     # print("compare board: {}".format(board.board))
     # if move not in new_moves:
     #     print(new_moves)
+    if not board.if_any_stone_nearby(move,board.current_player):
+        return 1
     current_player = board.current_player
     opponent = GoBoardUtil.opponent(current_player)
+    
     # current moves for current player
-    moves_current = board.get_moves_count(current_player)
+    # moves_current = GoBoardUtil.generate_legal_moves(board,current_player)
     # current moves of opponent
-    moves_opponent = board.get_moves_count(opponent)
-    # current player plays
+    # moves_opponent = GoBoardUtil.generate_legal_moves(board,opponent)
+    moves_current,moves_opponent = board.get_legal_move_count_for_two_color(current_player)
 
+    # current player plays
     board.play_move(move, current_player)
     # print("plays")
-    after_play_moves_opponent = board.get_moves_count(opponent)
-    after_play_moves_current = board.get_moves_count(current_player)
+    after_move_current,after_move_opponent = board.get_legal_move_count_for_two_color(current_player)
     board.undoMove(move)
-
-    # print("unplays")
     # legal moves removed for opponent
-    a = moves_opponent - after_play_moves_opponent
+    moves_reduced_opponent = moves_opponent-after_move_opponent
     # legal moves removed for current player
-    b = moves_current - after_play_moves_current
+    moves_reduced_current = after_move_current-moves_current
 
-    benefit_for_current = a - b
-    # try:
-    #     # opponent plays
-    #     board.play_move(move, opponent)
-    #     after_opponent_play_opponent = board.get_moves_count(opponent)
-    #     after_opponent_play_current = board.get_moves_count(current_player)
-    #     board.undoMove(move)
-    #     board.current_player = current_player
-    #     # legal moves removed for opponent
-    #     a_prime = moves_opponent - after_opponent_play_opponent
-    #     # legal moves removed for current player
-    #     b_prime = moves_opponent - after_opponent_play_current
-    #     benefit_for_opponent = a_prime - b_prime
-    # except ValueError:
-    #     board.undoMove(move)
-    #     board.current_player = current_player
-    #     benefit_for_opponent = 0
-    # # print("for current: {}, for opponent: {}, total: {}".format(benefit_for_current, benefit_for_opponent,
-    # #                                                             benefit_for_current - benefit_for_opponent))
+    benefit_for_current = moves_reduced_opponent - moves_reduced_current
+
     return benefit_for_current
 
 def negamax_boolean(board, tt, history_table, depth):
     result = tt.lookup(board.code())
     if result is not None:
         return result
+    # if board.size >= 4 and board.current_player == WHITE and depth == 1:
+        
+    #     if_symmetry = board.get_symmetry()
+    #     if if_symmetry is not None:
+    #         board.play_move(if_symmetry, board.current_player)
+    #         moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
+    #         for move in moves:
+    #             board.play_move(move, board.current_player)
+    #             store_result(tt, board, False, None)
+    #             board.undoMove(move)
+    #         board.undoMove(if_symmetry)
+    #         return store_result(tt, board, True, if_symmetry)
 
     # moves = board.get_empty_points()
     # moves = board.generate_legal_moves()
     moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
     # print("original: ",moves)
-    moves.sort(key=lambda i: (history_table.lookup(i),-board.can_be_played(i)),reverse=True)
-    # moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
+    # moves.sort(key=lambda i: (history_table.lookup(i),-board.can_be_played(i)),reverse=True)
+    # moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
+    # moves.sort(key=lambda i: (heuristic(i,board),history_table.lookup(i)),reverse=True)
+    moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
+    # if depth%10 == 0:
+    #     moves.sort(key=lambda x: heuristic(x,board), reverse=True)
     # moves.sort(key=lambda i: board.edges_near_by(i), reverse=True)
     # print("sorted: ", moves)
     for move in moves:
@@ -548,7 +549,6 @@ def negamax_boolean(board, tt, history_table, depth):
 
     return store_result(tt, board, False, None)
     # return False, None
-
 
 class TranspositionTable:
     def __init__(self):
@@ -573,9 +573,9 @@ class HistoryHeuristicTable:
 
     def update(self, move, depth):
         if move in self.table:
-            self.table[move] += 1 << depth
+            self.table[move] += depth**2
         else:
-            self.table[move] = 1 << depth
+            self.table[move] = depth**2
 
     def lookup(self, code):
         return self.table.get(code) or 0

@@ -157,7 +157,13 @@ class SimpleGoBoard(object):
     def _stone_has_liberty(self, stone):
         lib = self.find_neighbor_of_color(stone, EMPTY)
         return lib != None
-
+    def find_potential_eyes(self,color,point):
+        count = 0
+        for nb in self.neighbors[point]:
+            if (self.find_neighbor_of_color(point, color) or 0) + (self.find_neighbor_of_color(point, BORDER) or 0) == 3:
+                count +=1
+        return count
+            
     def _get_liberty(self, block):
         """
         Find any liberty of the given block.
@@ -289,7 +295,9 @@ class SimpleGoBoard(object):
         all_isomorphism = [new_board, transpose, center_mirror, horizontal_mirror, vertical_mirror,
                            transpose_horizontal_mirror, transpose_vertical_mirror]
         return set(map(lambda x: self.code_from_pure_board(x), all_isomorphism))
-
+    def if_any_stone_nearby(self,point,color):
+        # return any(map(lambda x: self.board[x] == color,self._diag_neighbors(point))) or any(map(lambda x: self.board[x] == GoBoardUtil.opponent(color)),self._diag_neighbors(point))
+        return any(map(lambda x: self.board[x] == color,self._diag_neighbors(point))) or any(map(lambda x: self.board[x] == color,self._neighbors(point)))
     def code_from_pure_board(self, pure_board):
         c = 0
         count = 0
@@ -311,7 +319,32 @@ class SimpleGoBoard(object):
     def can_be_played(self, point):
 
         return self.is_legal(point,BLACK) + self.is_legal(point,WHITE)
-
+    def edges_near_by(self, point):
+        return sum(map(lambda x: self.board[x] == BORDER, [point - self.NS, point + self.NS, point - 1, point + 1]))
+    def is_corner (self,point):
+        return sum(map(lambda x: self.board[x] == BORDER, [point - self.NS, point + self.NS, point - 1, point + 1])) == 2
+    def get_legal_move_count_for_two_color(self, color):
+        empty = self.get_empty_points()
+        for_color = 0
+        for_opponent = 0
+        for pt in empty:
+            if self.is_legal(pt,color):
+                for_color +=1
+            if self.is_legal(pt,GoBoardUtil.opponent(color)):
+                for_opponent +=1
+        return for_color,for_opponent
+    def get_symmetry(self):
+        not_match=None
+        for point in range(self.maxpoint):
+            if self.board[point] == BLACK:
+                return self.NS**2+self.NS-point
+        return None
+    def count_steps(self):
+        count = 0
+        for i in self.board:
+            if i == WHITE or i==BLACK:
+                count+=1
+        return count
     def neighbors_of_color(self, point, color):
         """ List of neighbors of point of given color """
         nbc = []
