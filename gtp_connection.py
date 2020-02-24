@@ -13,7 +13,7 @@ from sys import stdin, stdout, stderr
 from board_util import GoBoardUtil, BLACK, WHITE, EMPTY, BORDER, PASS, \
     MAXSIZE, coord_to_point
 import re
-import multiprocessing as mp
+import threading
 
 
 class GtpConnection():
@@ -475,24 +475,26 @@ def store_result(tt, board, result, move):
     return result, move
 
 
-def heuristic(move, board):
-    board_copy = board.copy()
+def heuristic(move, board,lock):
+    
     # new_moves = GoBoardUtil.generate_legal_moves(board,board.current_player)
     # print("compare board: {}".format(board.board))
     # if move not in new_moves:
     #     print(new_moves)
-    current_player = board_copy.current_player
+    current_player = board.current_player
     opponent = GoBoardUtil.opponent(current_player)
     # current moves for current player
-    moves_current = board_copy.get_moves_count(current_player)
+    moves_current = board.get_moves_count(current_player)
     # current moves of opponent
-    moves_opponent = board_copy.get_moves_count(opponent)
+    moves_opponent = board.get_moves_count(opponent)
     # current player plays
-    board_copy.play_move(move, current_player)
+    lock.acquire()
+    board.play_move(move, current_player)
     # print("plays")
-    after_play_moves_opponent = board_copy.get_moves_count(opponent)
-    after_play_moves_current = board_copy.get_moves_count(current_player)
-    board_copy.undoMove(move)
+    after_play_moves_opponent = board.get_moves_count(opponent)
+    after_play_moves_current = board.get_moves_count(current_player)
+    board.undoMove(move)
+    lock.release()
     # print("unplays")
     # legal moves removed for opponent
     a = moves_opponent - after_play_moves_opponent
@@ -502,12 +504,13 @@ def heuristic(move, board):
     benefit_for_current = a - b
     try:
         # opponent plays
-        board_copy.play_move(move, opponent)
-
-        after_opponent_play_opponent = board_copy.get_moves_count(opponent)
-        after_opponent_play_current = board_copy.get_moves_count(current_player)
-        board_copy.undoMove(move)
-        board_copy.current_player = current_player
+        lock.acquire()
+        board.play_move(move, opponent)
+        after_opponent_play_opponent = board.get_moves_count(opponent)
+        after_opponent_play_current = board.get_moves_count(current_player)
+        board.undoMove(move)
+        lock.release()
+        board.current_player = current_player
         # legal moves removed for opponent
         a_prime = moves_opponent - after_opponent_play_opponent
         # legal moves removed for current player
@@ -529,16 +532,19 @@ def negamax_boolean(board, tt, history_table, depth):
     # moves = board.generate_legal_moves()
     moves = GoBoardUtil.generate_legal_moves(board, board.current_player)
     # print("original: ",moves)
-    moves.sort(key=lambda i: (history_table.lookup(i),board.edges_near_by(i)),reverse=True)
+    # moves.sort(key=lambda i: (heuristic(i, board),history_table.lookup(i),board.edges_near_by(i)),reverse=True)
+    # moves.sort(key=lambda i: (heuristic(i, board),history_table.lookup(i)),reverse=True)
+    lock = threading.Lock()
+    moves.sort(key=lambda i: heuristic(i, board,lock),reverse=True)
 
     # moves.sort(key=lambda x: history_table.lookup(x), reverse=True)
     # moves.sort(key=lambda i: board.edges_near_by(i), reverse=True)
     # print("sorted: ", moves)
-    # for move in moves:
+    for move in moves:
     # print("   this board: {}".format(board.board))
-    while moves:
-        move = max(moves, key=lambda i: heuristic(i, board))
-        moves.remove(move)
+    # while moves:
+    #     move = max(moves, key=lambda i: heuristic(i, board))
+    #     moves.remove(move)
         board.play_move(move, board.current_player)
 
         # print("play {}".format(format_point(point_to_coord(move, 4))))
